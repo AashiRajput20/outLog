@@ -1,0 +1,33 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Arial', sans-serif;
+  background-color: #1a0010;
+  color: #FFE4F0;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #2d0020;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #FF2D7A;
+  border-radius: 10px;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+select option {
+  background-color: #2d0020;
+  color: #FFE4F0;
+}
