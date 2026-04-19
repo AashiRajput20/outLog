@@ -16,13 +16,30 @@ function AllLeaves() {
     setLoading(false);
   };
 
-  const handleAction = async (id, status, forwardToAdmin = false) => {
+  const handleAction = async (id, action) => {
     try {
-      await API.put(`/leave/update/${id}`, {
-        status, remark: remark[id] || '', forwardToAdmin,
+      await API.put(`/leave/warden-action/${id}`, {
+        action,
+        remark: remark[id] || '',
       });
       fetchLeaves();
     } catch (err) { console.log(err); }
+  };
+
+  const getStatusBadge = (leave) => {
+    if (leave.status === 'approved') return { label: 'APPROVED', color: '#FF94B2', border: '1px solid #FF94B2', bg: '#3d0020' };
+    if (leave.status === 'rejected') return { label: 'REJECTED', color: '#FF2D7A', border: '1px solid #FF2D7A', bg: '#3d0015' };
+    if (leave.status === 'forwarded_to_admin') return { label: 'FORWARDED TO ADMIN', color: '#FFB3D1', border: '1px solid #FFB3D1', bg: '#2d0020' };
+    return { label: 'PENDING', color: '#FFE4F0', border: '1px solid #8B0050', bg: '#1a0010' };
+  };
+
+  // Warden can act if:
+  // 1. Fresh request (wardenStatus === 'pending' and not forwarded)
+  // 2. Was forwarded and admin has responded (adminStatus is 'approved' or 'rejected')
+  const wardenCanAct = (leave) => {
+    if (leave.wardenStatus === 'pending' && !leave.forwardedToAdmin) return true;
+    if (leave.forwardedToAdmin && leave.adminStatus !== 'pending') return true;
+    return false;
   };
 
   if (loading) return <p style={{ color: '#FFB3D1' }}>Loading...</p>;
@@ -34,52 +51,82 @@ function AllLeaves() {
           <p style={{ color: '#FFB3D1' }}>No leave requests found.</p>
         </div>
       ) : (
-        leaves.map((leave) => (
-          <div key={leave._id} style={styles.card}>
-            <div style={styles.cardHeader}>
-              <div>
-                <span style={styles.studentName}>{leave.student?.name}</span>
-                <span style={styles.leaveType}> — {leave.leaveType.toUpperCase()}</span>
+        leaves.map((leave) => {
+          const badge = getStatusBadge(leave);
+          return (
+            <div key={leave._id} style={styles.card}>
+              <div style={styles.cardHeader}>
+                <div>
+                  <span style={styles.studentName}>{leave.student?.name}</span>
+                  <span style={styles.leaveType}> — {leave.leaveType.toUpperCase()}</span>
+                </div>
+                <span style={{ ...styles.statusBadge, color: badge.color, border: badge.border, backgroundColor: badge.bg }}>
+                  {badge.label}
+                </span>
               </div>
-              <span style={{
-                ...styles.statusBadge,
-                color: leave.status === 'approved' ? '#FF94B2' : leave.status === 'rejected' ? '#FF2D7A' : '#FFB3D1',
-                border: `1px solid ${leave.status === 'approved' ? '#FF94B2' : leave.status === 'rejected' ? '#FF2D7A' : '#FFB3D1'}`,
-                backgroundColor: '#1a0010',
-              }}>
-                {leave.status.toUpperCase()}
-              </span>
-            </div>
 
-            <p style={styles.text}><span style={styles.label}>Roll No:</span> {leave.student?.rollNumber}</p>
-            <p style={styles.text}><span style={styles.label}>Room:</span> {leave.student?.roomNumber} | <span style={styles.label}>Hostel:</span> {leave.student?.hostel}</p>
-            <p style={styles.text}><span style={styles.label}>Reason:</span> {leave.reason}</p>
-            <p style={styles.text}><span style={styles.label}>Destination:</span> {leave.destination}</p>
-            <p style={styles.text}>
-              <span style={styles.label}>Dates:</span>{' '}
-              {new Date(leave.fromDate).toLocaleDateString()} → {new Date(leave.toDate).toLocaleDateString()}
-            </p>
-            <p style={styles.text}><span style={styles.label}>Parent Contact:</span> {leave.parentContact}</p>
+              <p style={styles.text}><span style={styles.label}>Roll No:</span> {leave.student?.rollNumber}</p>
+              <p style={styles.text}><span style={styles.label}>Room:</span> {leave.student?.roomNumber} | <span style={styles.label}>Hostel:</span> {leave.student?.hostel}</p>
+              <p style={styles.text}><span style={styles.label}>Reason:</span> {leave.reason}</p>
+              <p style={styles.text}><span style={styles.label}>Destination:</span> {leave.destination}</p>
+              <p style={styles.text}>
+                <span style={styles.label}>Dates:</span>{' '}
+                {new Date(leave.fromDate).toLocaleDateString()} → {new Date(leave.toDate).toLocaleDateString()}
+              </p>
+              <p style={styles.text}><span style={styles.label}>Parent Contact:</span> {leave.parentContact}</p>
 
-            {leave.status === 'pending' && (
-              <div style={styles.actionBox}>
-                <input
-                  style={styles.remarkInput}
-                  placeholder='Add remark (optional)'
-                  value={remark[leave._id] || ''}
-                  onChange={(e) => setRemark({ ...remark, [leave._id]: e.target.value })}
-                />
-                <div style={styles.actionButtons}>
-                  <button style={styles.approveBtn} onClick={() => handleAction(leave._id, 'approved')}>Approve</button>
-                  <button style={styles.rejectBtn} onClick={() => handleAction(leave._id, 'rejected')}>Reject</button>
-                  {leave.leaveType === 'special' && (
-                    <button style={styles.forwardBtn} onClick={() => handleAction(leave._id, 'forwarded', true)}>Forward to Admin</button>
+              {/* Show admin's decision to warden if forwarded */}
+              {leave.forwardedToAdmin && (
+                <div style={{
+                  ...styles.adminDecisionBox,
+                  borderColor: leave.adminStatus === 'approved' ? '#FF94B2' : leave.adminStatus === 'rejected' ? '#FF2D7A' : '#8B0050'
+                }}>
+                  {leave.adminStatus === 'pending' && (
+                    <p style={{ color: '#FFB3D1', margin: 0, fontSize: '13px' }}>
+                      ⏳ Waiting for admin decision...
+                    </p>
+                  )}
+                  {leave.adminStatus === 'approved' && (
+                    <p style={{ color: '#FF94B2', margin: 0, fontSize: '13px', fontWeight: 'bold' }}>
+                      ✅ Approved by Admin {leave.adminRemark ? `— "${leave.adminRemark}"` : ''}
+                    </p>
+                  )}
+                  {leave.adminStatus === 'rejected' && (
+                    <p style={{ color: '#FF2D7A', margin: 0, fontSize: '13px', fontWeight: 'bold' }}>
+                      ❌ Rejected by Admin {leave.adminRemark ? `— "${leave.adminRemark}"` : ''}
+                    </p>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-        ))
+              )}
+
+              {/* Warden action buttons */}
+              {wardenCanAct(leave) && (
+                <div style={styles.actionBox}>
+                  <input
+                    style={styles.remarkInput}
+                    placeholder='Add remark (optional)'
+                    value={remark[leave._id] || ''}
+                    onChange={(e) => setRemark({ ...remark, [leave._id]: e.target.value })}
+                  />
+                  <div style={styles.actionButtons}>
+                    <button style={styles.approveBtn} onClick={() => handleAction(leave._id, 'approve')}>
+                      Approve
+                    </button>
+                    <button style={styles.rejectBtn} onClick={() => handleAction(leave._id, 'reject')}>
+                      Reject
+                    </button>
+                    {/* Forward button only for non-forwarded pending requests */}
+                    {!leave.forwardedToAdmin && (
+                      <button style={styles.forwardBtn} onClick={() => handleAction(leave._id, 'forward')}>
+                        Forward to Admin
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })
       )}
     </div>
   );
@@ -103,6 +150,11 @@ const styles = {
   statusBadge: { padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' },
   text: { fontSize: '14px', color: '#FFB3D1', marginBottom: '4px' },
   label: { color: '#FFE4F0', fontWeight: 'bold' },
+  adminDecisionBox: {
+    marginTop: '10px', padding: '10px 14px',
+    backgroundColor: '#1a0010', borderRadius: '8px',
+    borderLeft: '3px solid #8B0050',
+  },
   actionBox: { marginTop: '12px', borderTop: '1px solid #8B0050', paddingTop: '12px' },
   remarkInput: {
     width: '100%', padding: '10px 14px', borderRadius: '10px',

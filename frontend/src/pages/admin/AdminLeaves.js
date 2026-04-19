@@ -10,15 +10,18 @@ function AdminLeaves() {
 
   const fetchLeaves = async () => {
     try {
-      const res = await API.get('/leave/all');
+      const res = await API.get('/leave/all'); // backend already filters for admin
       setLeaves(res.data);
     } catch (err) { console.log(err); }
     setLoading(false);
   };
 
-  const handleAction = async (id, status) => {
+  const handleAction = async (id, action) => {
     try {
-      await API.put(`/leave/update/${id}`, { status, remark: remark[id] || '' });
+      await API.put(`/leave/admin-action/${id}`, {
+        action,
+        remark: remark[id] || '',
+      });
       fetchLeaves();
     } catch (err) { console.log(err); }
   };
@@ -29,7 +32,7 @@ function AdminLeaves() {
     <div>
       {leaves.length === 0 ? (
         <div style={styles.emptyBox}>
-          <p style={{ color: '#FFB3D1' }}>No special leave requests found.</p>
+          <p style={{ color: '#FFB3D1' }}>No forwarded leave requests found.</p>
         </div>
       ) : (
         leaves.map((leave) => (
@@ -41,11 +44,11 @@ function AdminLeaves() {
               </div>
               <span style={{
                 ...styles.statusBadge,
-                color: leave.status === 'approved' ? '#FF94B2' : leave.status === 'rejected' ? '#FF2D7A' : '#FFB3D1',
-                border: `1px solid ${leave.status === 'approved' ? '#FF94B2' : leave.status === 'rejected' ? '#FF2D7A' : '#FFB3D1'}`,
+                color: leave.adminStatus === 'approved' ? '#FF94B2' : leave.adminStatus === 'rejected' ? '#FF2D7A' : '#FFB3D1',
+                border: `1px solid ${leave.adminStatus === 'approved' ? '#FF94B2' : leave.adminStatus === 'rejected' ? '#FF2D7A' : '#FFB3D1'}`,
                 backgroundColor: '#1a0010',
               }}>
-                {leave.status.toUpperCase()}
+                {leave.adminStatus === 'pending' ? 'AWAITING YOUR DECISION' : leave.adminStatus.toUpperCase()}
               </span>
             </div>
 
@@ -58,10 +61,11 @@ function AdminLeaves() {
               {new Date(leave.fromDate).toLocaleDateString()} → {new Date(leave.toDate).toLocaleDateString()}
             </p>
             {leave.wardenRemark && (
-              <p style={styles.remark}>Warden: {leave.wardenRemark}</p>
+              <p style={styles.remark}>Warden Note: {leave.wardenRemark}</p>
             )}
 
-            {(leave.status === 'pending' || leave.status === 'forwarded') && (
+            {/* Admin can only act if they haven't decided yet */}
+            {leave.adminStatus === 'pending' && (
               <div style={styles.actionBox}>
                 <input
                   style={styles.remarkInput}
@@ -70,10 +74,20 @@ function AdminLeaves() {
                   onChange={(e) => setRemark({ ...remark, [leave._id]: e.target.value })}
                 />
                 <div style={styles.actionButtons}>
-                  <button style={styles.approveBtn} onClick={() => handleAction(leave._id, 'approved')}>Approve</button>
-                  <button style={styles.rejectBtn} onClick={() => handleAction(leave._id, 'rejected')}>Reject</button>
+                  <button style={styles.approveBtn} onClick={() => handleAction(leave._id, 'approve')}>
+                    Approve
+                  </button>
+                  <button style={styles.rejectBtn} onClick={() => handleAction(leave._id, 'reject')}>
+                    Reject
+                  </button>
                 </div>
               </div>
+            )}
+
+            {leave.adminStatus !== 'pending' && (
+              <p style={{ color: '#FFB3D1', fontSize: '13px', marginTop: '10px' }}>
+                Your decision has been sent back to warden for final action.
+              </p>
             )}
           </div>
         ))
