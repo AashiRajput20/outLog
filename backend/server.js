@@ -15,11 +15,20 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/leave', require('./routes/leaveRoutes'));
 app.use('/api/security', require('./routes/securityRoutes'));
 
-app.get('/', (req, res) => {
-  res.send('Hostel Management API Running');
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, 'public')));
+
+// The "catchall" handler
+app.get('*', (req, res) => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      res.status(200).send('Hostel Management API Running (Frontend build not found)');
+    }
+  });
 });
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-});
+});
