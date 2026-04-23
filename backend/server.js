@@ -19,7 +19,7 @@ app.use('/api/security', require('./routes/securityRoutes'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // The "catchall" handler
-app.get('*', (req, res) => {
+app.use((req, res) => {
   const indexPath = path.join(__dirname, 'public', 'index.html');
   res.sendFile(indexPath, (err) => {
     if (err) {
